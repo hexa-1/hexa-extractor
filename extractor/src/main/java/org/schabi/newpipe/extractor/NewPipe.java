@@ -13,11 +13,11 @@ package org.schabi.newpipe.extractor;
  *
  * NewPipe is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with NewPipe.  If not, see <http://www.gnu.org/licenses/>.
+ * along with NewPipe. If not, see <http://www.gnu.org/licenses/>.
  */
 
 import org.schabi.newpipe.extractor.downloader.Downloader;
@@ -26,18 +26,10 @@ import org.schabi.newpipe.extractor.localization.ContentCountry;
 import org.schabi.newpipe.extractor.localization.Localization;
 import org.schabi.newpipe.extractor.services.youtube.YoutubeSessionPoTokenProvider;
 
+import java.util.List;
+
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import javax.net.ssl.HostnameVerifier;
-import javax.net.ssl.HttpsURLConnection;
-import javax.net.ssl.SSLContext;
-import javax.net.ssl.SSLSession;
-import javax.net.ssl.X509TrustManager;
-
-import java.security.SecureRandom;
-import java.security.cert.CertificateException;
-import java.security.cert.X509Certificate;
-import java.util.List;
 
 /**
  * Provides access to streaming services supported by NewPipe.
@@ -47,13 +39,14 @@ public final class NewPipe {
     private static Localization preferredLocalization;
     private static ContentCountry preferredContentCountry;
     private static String youtubePlayerClient = "web_safari";
+
     @Nullable
     private static YoutubeSessionPoTokenProvider youtubeSessionPoTokenProvider;
+
     @Nullable
     private static WebViewAvailabilityChecker webViewAvailabilityChecker;
 
     private NewPipe() {
-
     }
 
     public static void init(final Downloader d) {
@@ -65,11 +58,18 @@ public final class NewPipe {
                 ? ContentCountry.DEFAULT : new ContentCountry(l.getCountryCode()));
     }
 
-    public static void init(final Downloader d, final Localization l, final ContentCountry c) {
+    public static void init(final Downloader d,
+                            final Localization l,
+                            final ContentCountry c) {
         downloader = d;
         preferredLocalization = l;
         preferredContentCountry = c;
-        trustEveryone();
+
+        /*
+         * Intentionally retain Java/Android's standard TLS certificate
+         * and hostname verification. Do not install a process-wide
+         * permissive TLS verifier here.
+         */
     }
 
     public static Downloader getDownloader() {
@@ -84,7 +84,8 @@ public final class NewPipe {
         return ServiceList.all();
     }
 
-    public static StreamingService getService(final int serviceId) throws ExtractionException {
+    public static StreamingService getService(final int serviceId)
+            throws ExtractionException {
         return ServiceList.all().stream()
                 .filter(service -> service.getServiceId() == serviceId)
                 .findFirst()
@@ -92,7 +93,8 @@ public final class NewPipe {
                         "There's no service with the id = \"" + serviceId + "\""));
     }
 
-    public static StreamingService getService(final String serviceName) throws ExtractionException {
+    public static StreamingService getService(final String serviceName)
+            throws ExtractionException {
         return ServiceList.all().stream()
                 .filter(service -> service.getServiceInfo().getName().equals(serviceName))
                 .findFirst()
@@ -100,12 +102,14 @@ public final class NewPipe {
                         "There's no service with the name = \"" + serviceName + "\""));
     }
 
-    public static StreamingService getServiceByUrl(final String url) throws ExtractionException {
+    public static StreamingService getServiceByUrl(final String url)
+            throws ExtractionException {
         for (final StreamingService service : ServiceList.all()) {
             if (service.getLinkTypeByUrl(url) != StreamingService.LinkType.NONE) {
                 return service;
             }
         }
+
         throw new ExtractionException("No service can handle the url = \"" + url + "\"");
     }
 
@@ -143,29 +147,41 @@ public final class NewPipe {
         if (thePreferredContentCountry != null) {
             NewPipe.preferredContentCountry = thePreferredContentCountry;
         } else {
-            NewPipe.preferredContentCountry = thePreferredLocalization.getCountryCode().isEmpty()
-                    ? ContentCountry.DEFAULT
-                    : new ContentCountry(thePreferredLocalization.getCountryCode());
+            NewPipe.preferredContentCountry =
+                    thePreferredLocalization.getCountryCode().isEmpty()
+                            ? ContentCountry.DEFAULT
+                            : new ContentCountry(
+                                    thePreferredLocalization.getCountryCode());
         }
     }
 
     @Nonnull
     public static Localization getPreferredLocalization() {
-        return preferredLocalization == null ? Localization.DEFAULT : preferredLocalization;
+        return preferredLocalization == null
+                ? Localization.DEFAULT
+                : preferredLocalization;
     }
 
-    public static void setPreferredLocalization(final Localization preferredLocalization) {
+    public static void setPreferredLocalization(
+            final Localization preferredLocalization) {
         NewPipe.preferredLocalization = preferredLocalization;
     }
 
     @Nonnull
     public static ContentCountry getPreferredContentCountry() {
-        return preferredContentCountry == null ? ContentCountry.DEFAULT : preferredContentCountry;
+        return preferredContentCountry == null
+                ? ContentCountry.DEFAULT
+                : preferredContentCountry;
     }
 
-    public static void setPreferredContentCountry(final ContentCountry preferredContentCountry) {
+    public static void setPreferredContentCountry(
+            final ContentCountry preferredContentCountry) {
         NewPipe.preferredContentCountry = preferredContentCountry;
     }
+
+    /*//////////////////////////////////////////////////////////////////////////
+    // YouTube player client and PoToken integration
+    //////////////////////////////////////////////////////////////////////////*/
 
     public static String getYoutubePlayerClient() {
         return youtubePlayerClient;
@@ -201,28 +217,6 @@ public final class NewPipe {
         final WebViewAvailabilityChecker checker = webViewAvailabilityChecker;
         if (checker != null) {
             checker.checkWebViewAvailable();
-        }
-    }
-
-    public static void trustEveryone() {
-        try {
-            HttpsURLConnection.setDefaultHostnameVerifier(new HostnameVerifier(){
-                public boolean verify(String hostname, SSLSession session) {
-                    return true;
-                }});
-            SSLContext context = SSLContext.getInstance("TLS");
-            context.init(null, new X509TrustManager[]{new X509TrustManager(){
-                public void checkClientTrusted(X509Certificate[] chain,
-                                               String authType) throws CertificateException {}
-                public void checkServerTrusted(X509Certificate[] chain,
-                                               String authType) throws CertificateException {}
-                public X509Certificate[] getAcceptedIssuers() {
-                    return new X509Certificate[0];
-                }}}, new SecureRandom());
-            HttpsURLConnection.setDefaultSSLSocketFactory(
-                    context.getSocketFactory());
-        } catch (Exception e) { // should never happen
-            e.printStackTrace();
         }
     }
 }

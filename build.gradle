@@ -4,17 +4,21 @@ allprojects {
 
     java {
         toolchain {
-            languageVersion = JavaLanguageVersion.of(25)
+            languageVersion = JavaLanguageVersion.of(17)
         }
         withSourcesJar()
     }
+
     tasks.withType(JavaCompile).configureEach {
         options.encoding = 'UTF-8'
+        options.release.set(17)
     }
+
     tasks.matching { it.name == 'test' || it.name == 'check' }.configureEach {
         enabled = false
         group = null
     }
+
     version 'v5.2.5'
     group 'com.github.InfinityLoop1308.PipePipeExtractor'
 

@@ -26,19 +26,11 @@ import org.schabi.newpipe.extractor.localization.ContentCountry;
 import org.schabi.newpipe.extractor.localization.Localization;
 import org.schabi.newpipe.extractor.services.youtube.YoutubePoTokenResult;
 
-import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
-import javax.net.ssl.HostnameVerifier;
-import javax.net.ssl.HttpsURLConnection;
-import javax.net.ssl.SSLContext;
-import javax.net.ssl.SSLSession;
-import javax.net.ssl.X509TrustManager;
-
-import java.security.SecureRandom;
-import java.security.cert.CertificateException;
-import java.security.cert.X509Certificate;
 import java.util.List;
 import java.util.function.Function;
+
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 /**
  * Provides access to streaming services supported by NewPipe.
@@ -48,13 +40,14 @@ public final class NewPipe {
     private static Localization preferredLocalization;
     private static ContentCountry preferredContentCountry;
     private static String youtubePlayerClient = "visionos";
+
     @Nullable
     private static volatile Function<String, YoutubePoTokenResult> youtubePoTokenResolver;
+
     @Nullable
     private static WebViewAvailabilityChecker webViewAvailabilityChecker;
 
     private NewPipe() {
-
     }
 
     public static void init(final Downloader d) {
@@ -70,7 +63,11 @@ public final class NewPipe {
         downloader = d;
         preferredLocalization = l;
         preferredContentCountry = c;
-        trustEveryone();
+
+        /*
+         * Keep Java/Android's default TLS certificate and hostname verification.
+         * Do not install a process-wide permissive verifier/trust manager here.
+         */
     }
 
     public static Downloader getDownloader() {
@@ -93,7 +90,8 @@ public final class NewPipe {
                         "There's no service with the id = \"" + serviceId + "\""));
     }
 
-    public static StreamingService getService(final String serviceName) throws ExtractionException {
+    public static StreamingService getService(final String serviceName)
+            throws ExtractionException {
         return ServiceList.all().stream()
                 .filter(service -> service.getServiceInfo().getName().equals(serviceName))
                 .findFirst()
@@ -101,7 +99,8 @@ public final class NewPipe {
                         "There's no service with the name = \"" + serviceName + "\""));
     }
 
-    public static StreamingService getServiceByUrl(final String url) throws ExtractionException {
+    public static StreamingService getServiceByUrl(final String url)
+            throws ExtractionException {
         for (final StreamingService service : ServiceList.all()) {
             if (service.getLinkTypeByUrl(url) != StreamingService.LinkType.NONE) {
                 return service;
@@ -168,6 +167,10 @@ public final class NewPipe {
         NewPipe.preferredContentCountry = preferredContentCountry;
     }
 
+    /*//////////////////////////////////////////////////////////////////////////
+    // YouTube player client and PoToken integration
+    //////////////////////////////////////////////////////////////////////////*/
+
     public static String getYoutubePlayerClient() {
         return youtubePlayerClient;
     }
@@ -202,28 +205,6 @@ public final class NewPipe {
         final WebViewAvailabilityChecker checker = webViewAvailabilityChecker;
         if (checker != null) {
             checker.checkWebViewAvailable();
-        }
-    }
-
-    public static void trustEveryone() {
-        try {
-            HttpsURLConnection.setDefaultHostnameVerifier(new HostnameVerifier(){
-                public boolean verify(String hostname, SSLSession session) {
-                    return true;
-                }});
-            SSLContext context = SSLContext.getInstance("TLS");
-            context.init(null, new X509TrustManager[]{new X509TrustManager(){
-                public void checkClientTrusted(X509Certificate[] chain,
-                                               String authType) throws CertificateException {}
-                public void checkServerTrusted(X509Certificate[] chain,
-                                               String authType) throws CertificateException {}
-                public X509Certificate[] getAcceptedIssuers() {
-                    return new X509Certificate[0];
-                }}}, new SecureRandom());
-            HttpsURLConnection.setDefaultSSLSocketFactory(
-                    context.getSocketFactory());
-        } catch (Exception e) { // should never happen
-            e.printStackTrace();
         }
     }
 }
